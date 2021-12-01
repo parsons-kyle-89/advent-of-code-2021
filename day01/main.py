@@ -31,7 +31,7 @@ def main() -> None:
     assert answer_1 == 1390
     print(answer_1)
 
-    answer_2 = sum(1 for diff in diffs(list(triads(depths))) if diff > 0)
+    answer_2 = sum(1 for diff in diffs(triads(depths)) if diff > 0)
     print(answer_2)
 
 
