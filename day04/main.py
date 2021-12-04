@@ -1,11 +1,11 @@
-from typing import Sequence
+from typing import cast, Sequence
 import os.path
 
 SCRIPT_DIR = os.path.dirname(os.path.relpath(__file__))
 
 
-Row = tuple[int, ...]
-Board = tuple[Row, ...]
+Row = tuple[int, int, int, int, int]
+Board = tuple[Row, Row, Row, Row, Row]
 
 
 class Game:
@@ -52,7 +52,7 @@ class Game:
             tuple(int(raw_entry) for raw_entry in raw_row.split(maxsplit=4))
             for raw_row in raw_rows
         )
-        return cls(board)
+        return cls(cast(Board, board))
 
 
 def parse_numbers(raw_numbers: str) -> list[int]:
@@ -111,9 +111,7 @@ def main() -> None:
     loser, losing_number = simulate_losing(games, numbers)
     answer_2 = loser.sum_unmarked() * losing_number
 
-    print(loser)
-    print(losing_number)
-    # assert answer_2 == 'there\n'
+    assert answer_2 == 26878
     print(answer_2)
 
 
