@@ -1,11 +1,18 @@
+from collections import defaultdict
 import os.path
+from typing import Iterator, MutableMapping
 
 SCRIPT_DIR = os.path.dirname(os.path.relpath(__file__))
 
 
 Point = tuple[int, int]
 Line = tuple[Point, Point]
-Atlas = dict[Point, int]
+Atlas = MutableMapping[Point, int]
+
+
+def my_range(start: int, end: int) -> Iterator[int]:
+    sign = 1 if end > start else -1
+    yield from range(start, end + sign, sign)
 
 
 def parse_line(raw_line: str) -> Line:
@@ -20,87 +27,74 @@ def parse_point(raw_point: str) -> Point:
     return (int(x), int(y))
 
 
-def make_atlas(top_left: Point, bottom_right: Point) -> Atlas:
-    start_x, start_y = top_left
-    end_x, end_y = bottom_right
-    return {
-        (x, y): 0
-        for x in range(start_x, end_x + 1)
-        for y in range(start_y, end_y + 1)
-    }
+def line_is_ver(line: Line) -> bool:
+    start, end = line
+    start_x, _ = start
+    end_x, _ = end
+    return start_x == end_x
 
 
-def add_ver_hor_line_to_atlas(atlas: Atlas, line: Line) -> None:
+def line_is_hor(line: Line) -> bool:
+    start, end = line
+    _, start_y = start
+    _, end_y = end
+    return start_y == end_y
+
+
+def line_is_diag(line: Line) -> bool:
     start, end = line
     start_x, start_y = start
     end_x, end_y = end
-    min_x, max_x = min(start_x, end_x), max(start_x, end_x)
-    min_y, max_y = min(start_y, end_y), max(start_y, end_y)
-
-    if min_x == max_x:
-        for y in range(min_y, max_y + 1):
-            atlas[(min_x, y)] += 1
-    elif min_y == max_y:
-        for x in range(min_x, max_x + 1):
-            atlas[(x, min_y)] += 1
-    else:
-        pass
+    return abs(end_x - start_x) == abs(end_y - start_y)
 
 
-def add_ver_hor_diag_line_to_atlas(atlas: Atlas, line: Line) -> None:
-    start, end = line
+def ver_line_range(ver_line: Line) -> Iterator[Point]:
+    start, end = ver_line
     start_x, start_y = start
     end_x, end_y = end
+    assert start_x == end_x
+    for y in my_range(start_y, end_y):
+        yield (start_x, y)
 
-    diff_x = end_x - start_x
-    diff_y = end_y - start_y
 
-    sign_x = int(diff_x / abs(diff_x)) if diff_x != 0 else 0
-    sign_y = int(diff_y / abs(diff_y)) if diff_y != 0 else 0
+def hor_line_range(hor_line: Line) -> Iterator[Point]:
+    start, end = hor_line
+    start_x, start_y = start
+    end_x, end_y = end
+    assert start_y == end_y
+    for x in my_range(start_x, end_x):
+        yield (x, start_y)
 
-    range_x = (
-        range(start_x, end_x + sign_x, sign_x)
-        if sign_x != 0
-        else range(start_x, end_x)
-    )
-    range_y = (
-        range(start_y, end_y + sign_y, sign_y)
-        if sign_y != 0
-        else range(start_y, end_y)
-    )
 
-    if diff_x == 0:
-        for y in range_y:
-            atlas[(start_x, y)] += 1
-    elif diff_y == 0:
-        for x in range_x:
-            atlas[(x, start_y)] += 1
-    elif abs(diff_x) == abs(diff_y):
-        for x, y in zip(range_x, range_y):
-            atlas[(x, y)] += 1
-    else:
-        pass
+def diag_line_range(diag_line: Line) -> Iterator[Point]:
+    start, end = diag_line
+    start_x, start_y = start
+    end_x, end_y = end
+    assert abs(end_x - start_x) == abs(end_y - start_y)
+    yield from zip(my_range(start_x, end_x), my_range(start_y, end_y))
 
 
 def main() -> None:
     with open(f'{SCRIPT_DIR}/input.txt', 'r') as f:
         lines = [parse_line(raw_line) for raw_line in f.readlines()]
 
-    min_x, min_y = 0, 0
-    max_x = max(max(line[0][0], line[1][0]) for line in lines)
-    max_y = max(max(line[0][1], line[1][1]) for line in lines)
-
-    atlas = make_atlas((min_x, min_y), (max_x, max_y))
+    atlas: Atlas = defaultdict(int)
     for line in lines:
-        add_ver_hor_line_to_atlas(atlas, line)
+        if line_is_hor(line):
+            for p in hor_line_range(line):
+                atlas[p] += 1
+        elif line_is_ver(line):
+            for p in ver_line_range(line):
+                atlas[p] += 1
 
     answer_1 = sum(1 for value in atlas.values() if value > 1)
     assert answer_1 == 5835
     print(answer_1)
 
-    atlas = make_atlas((min_x, min_y), (max_x, max_y))
     for line in lines:
-        add_ver_hor_diag_line_to_atlas(atlas, line)
+        if line_is_diag(line):
+            for p in diag_line_range(line):
+                atlas[p] += 1
 
     answer_2 = sum(1 for value in atlas.values() if value > 1)
     assert answer_2 == 17013
