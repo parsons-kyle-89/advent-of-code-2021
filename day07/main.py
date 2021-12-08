@@ -1,4 +1,4 @@
-from statistics import mean, median
+from statistics import median
 import os.path
 
 SCRIPT_DIR = os.path.dirname(os.path.relpath(__file__))
@@ -25,15 +25,12 @@ def main() -> None:
         raw_positions = f.read()
     positions = parse_positions(raw_positions)
 
-    answer_1 = min(linear_fuel_cost(positions, p) for p in set(positions))
     best_position = int(median(positions))
     answer_1 = linear_fuel_cost(positions, best_position)
     assert answer_1 == 341558
     print(answer_1)
 
     answer_2 = min(triangular_fuel_cost(positions, p) for p in set(positions))
-    best_position = int(mean(positions))
-    answer_2 = triangular_fuel_cost(positions, best_position)
     assert answer_2 == 93214037
     print(answer_2)
 
