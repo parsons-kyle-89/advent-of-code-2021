@@ -24,7 +24,8 @@ class HeightMap:
     def __init__(self, heights: list[list[int]]):
         self._heights = heights
 
-    def __getitem__(self, x: int, y: int) -> int:
+    def __getitem__(self, point: Point) -> int:
+        x, y = point
         if x < 0 or y < 0:
             return MAX_HEIGHT
         try:
@@ -48,33 +49,29 @@ class HeightMap:
         excluding: set[Point] = set(),
     ) -> tuple[int, ...]:
         _neighbors = set(neighbor_indices(x, y)) - excluding
-        return tuple(self.__getitem__(xx, yy) for xx, yy in _neighbors)
+        return tuple(self[xx, yy] for xx, yy in _neighbors)
 
     def is_min(self, x: int, y: int) -> bool:
-        return self.__getitem__(x, y) < min(self.neighbors(x, y))
+        return self[x, y] < min(self.neighbors(x, y))
 
-    def basin(self, x: int, y: int) -> set[Point]:
-        return self._basin({(x, y)}, {(x, y)})
 
-    def _basin(
-        self,
-        partial_basin: set[Point],
-        last_border: set[Point],
-    ) -> set[Point]:
-        new_border = {
+def basin(height_map: HeightMap, x: int, y: int) -> set[Point]:
+    partial_basin = {(x, y)}
+    border = {(x, y)}
+    while border:
+        border = {
             (xx, yy)
-            for x, y in last_border
+            for x, y in border
             for xx, yy in neighbor_indices(x, y)
-            if self.__getitem__(xx, yy) <= min(
-                self.neighbors(xx, yy, excluding=partial_basin),
+            if height_map[xx, yy] <= min(
+                height_map.neighbors(xx, yy, excluding=partial_basin),
                 default=MAX_HEIGHT
             )
-            if self.__getitem__(xx, yy) < 9
+            if height_map[xx, yy] < 9
             if (xx, yy) not in partial_basin
         }
-        if not new_border:
-            return partial_basin
-        return self._basin(partial_basin.union(new_border), new_border)
+        partial_basin.update(border)
+    return partial_basin
 
 
 def main() -> None:
@@ -93,7 +90,7 @@ def main() -> None:
     assert answer_1 == 607
     print(answer_1)
 
-    *_, a, b, c = sorted(len(height_map.basin(x, y)) for x, y in mins.keys())
+    *_, a, b, c = sorted(len(basin(height_map, x, y)) for x, y in mins.keys())
     answer_2 = a * b * c
     assert answer_2 == 900864
     print(answer_2)
