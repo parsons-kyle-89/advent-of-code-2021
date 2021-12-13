@@ -1,8 +1,6 @@
 from collections import defaultdict
 import os.path
 from typing import Sequence
-import sys
-sys.setrecursionlimit(100)
 
 SCRIPT_DIR = os.path.dirname(os.path.relpath(__file__))
 
