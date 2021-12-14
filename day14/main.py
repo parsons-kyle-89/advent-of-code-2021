@@ -11,11 +11,6 @@ class PairInsertionRule:
     pair: str
     insertion: str
 
-    def intermediate_representation(self) -> str:
-        pair_l = self.pair[0]
-        pair_r = self.pair[1]
-        return pair_l + self.insertion.lower() + pair_r
-
     def new_pair_representation(self) -> tuple[str, str]:
         pair_l = self.pair[0]
         pair_r = self.pair[1]
@@ -62,20 +57,12 @@ def apply_pair_insertion_rules(
 def count_elements(
     pair_counts: Mapping[str, int],
     first: str,
-    last: str
 ) -> defaultdict[str, int]:
     element_counts: defaultdict[str, int] = defaultdict(int)
     for pair, count in pair_counts.items():
-        pair_l = pair[0]
         pair_r = pair[1]
-        element_counts[pair_l] += count
         element_counts[pair_r] += count
-    for element in element_counts.keys():
-        element_counts[element] //= 2
-    # if first == last our division was not rounded down
     element_counts[first] += 1
-    if last != first:
-        element_counts[last] += 1
     return element_counts
 
 
@@ -84,15 +71,12 @@ def main() -> None:
         raw_puzzle_input = f.read()
     template, pair_insertion_rules = parse_raw_puzzle_input(raw_puzzle_input)
     pair_counts = count_pairs(template)
-    print(pair_counts)
     for _ in range(10):
         pair_counts = apply_pair_insertion_rules(
             pair_insertion_rules, pair_counts
         )
 
-    element_counts = count_elements(
-        pair_counts, first=template[0], last=template[-1]
-    )
+    element_counts = count_elements(pair_counts, first=template[0])
     answer_1 = max(element_counts.values()) - min(element_counts.values())
     assert answer_1 == 4244
     print(answer_1)
@@ -102,11 +86,7 @@ def main() -> None:
             pair_insertion_rules, pair_counts
         )
 
-    print(pair_counts)
-    element_counts = count_elements(
-        pair_counts, first=template[0], last=template[-1]
-    )
-    print(element_counts)
+    element_counts = count_elements(pair_counts, first=template[0])
     answer_2 = max(element_counts.values()) - min(element_counts.values())
     assert answer_2 == 4807056953866
     print(answer_2)
