@@ -31,32 +31,88 @@ class PacketType(Enum):
 @dataclass(frozen=True)
 class Literal:
     version: int
-    type_id: PacketType
     value: int
 
 
 @dataclass(frozen=True)
-class Operator:
+class Sum:
     version: int
-    type_id: PacketType
-    packets: list["Packet"]
+    operands: list["Packet"]
 
 
-Packet = Literal | Operator
+@dataclass(frozen=True)
+class Product:
+    version: int
+    operands: list["Packet"]
+
+
+@dataclass(frozen=True)
+class Min:
+    version: int
+    operands: list["Packet"]
+
+
+@dataclass(frozen=True)
+class Max:
+    version: int
+    operands: list["Packet"]
+
+
+@dataclass(frozen=True)
+class GreaterThan:
+    version: int
+    left: "Packet"
+    right: "Packet"
+
+
+@dataclass(frozen=True)
+class LessThan:
+    version: int
+    left: "Packet"
+    right: "Packet"
+
+
+@dataclass(frozen=True)
+class EqualTo:
+    version: int
+    left: "Packet"
+    right: "Packet"
+
+
+Packet = (
+    Literal
+    | Sum
+    | Product
+    | Min
+    | Max
+    | GreaterThan
+    | LessThan
+    | EqualTo
+)
+PACKET_TYPE = {
+    0: Sum,
+    1: Product,
+    2: Min,
+    3: Max,
+    4: Literal,
+    5: GreaterThan,
+    6: LessThan,
+    7: EqualTo,
+}
 
 
 def parse_bit_queue(bit_queue: BitQueue) -> tuple[Packet, int]:
     already_consumed = bit_queue.consumed
 
     version = bit_queue.take(3)
-    type_id = PacketType(bit_queue.take(3))
+    type_id = bit_queue.take(3)
 
-    if type_id == PacketType.LITERAL:
+    if type_id == 4:
         value = 0
         while bit_queue.take(1) == 1:
             value = value * 16 + bit_queue.take(4)
         value = value * 16 + bit_queue.take(4)
-        packet = Literal(version, type_id, value)
+        packet = Literal(version, value)
 
     else:
         length_type_id = bit_queue.take(1)
@@ -74,7 +130,13 @@ def parse_bit_queue(bit_queue: BitQueue) -> tuple[Packet, int]:
             for _ in range(number_of_subpackets):
                 subpacket, _ = parse_bit_queue(bit_queue)
                 subpackets.append(subpacket)
-        packet = Operator(version, type_id, subpackets)
+
+        packet_type = PACKET_TYPE[type_id]
+        if packet_type in (GreaterThan, LessThan, EqualTo):
+            left, right = subpackets
+            packet = packet_type(version, left, right)
+        elif packet_type in (Sum, Product, Min, Max):
+            packet = packet_type(version, subpackets)
 
     return packet, bit_queue.consumed - already_consumed
 
@@ -84,35 +146,40 @@ def hex_to_bin(hex_packet: str) -> str:
 
 
 def sum_versions(packet: Packet) -> int:
-    match packet:
-        case Literal(version, _, _):
-            return version
-        case Operator(version, _, subpackets):
-            return version + sum(sum_versions(packet) for packet in subpackets)
-        case _:
-            raise RuntimeError
+    if isinstance(packet, Literal):
+        return packet.version
+    elif isinstance(packet, (Sum, Product, Min, Max)):
+        return packet.version + sum(sum_versions(op) for op in packet.operands)
+    elif isinstance(packet, (GreaterThan, LessThan, EqualTo)):
+        return (
+            packet.version
+            + sum_versions(packet.left)
+            + sum_versions(packet.right)
+        )
+    else:
+        raise RuntimeError
 
 
 def evaluate_packet(packet: Packet) -> int:
     match packet:
-        case Literal(_, _, value):
+        case Literal(_, value):
             return value
-        case Operator(_, PacketType.SUM, packets):
-            return sum(evaluate_packet(packet) for packet in packets)
-        case Operator(_, PacketType.PRODUCT, packets):
+        case Sum(_, summands):
+            return sum(evaluate_packet(summand) for summand in summands)
+        case Product(_, factors):
             value = 1
-            for packet in packets:
-                value *= evaluate_packet(packet)
+            for factor in factors:
+                value *= evaluate_packet(factor)
             return value
-        case Operator(_, PacketType.MIN, packets):
-            return min(evaluate_packet(packet) for packet in packets)
-        case Operator(_, PacketType.MAX, packets):
-            return max(evaluate_packet(packet) for packet in packets)
-        case Operator(_, PacketType.GREATER_THAN, [left, right]):
+        case Min(_, operands):
+            return min(evaluate_packet(operand) for operand in operands)
+        case Max(_, operands):
+            return max(evaluate_packet(operand) for operand in operands)
+        case GreaterThan(_, left, right):
             return 1 if evaluate_packet(left) > evaluate_packet(right) else 0
-        case Operator(_, PacketType.LESS_THAN, [left, right]):
+        case LessThan(_, left, right):
             return 1 if evaluate_packet(left) < evaluate_packet(right) else 0
-        case Operator(_, PacketType.EQUAL_TO, [left, right]):
+        case EqualTo(_, left, right):
             return 1 if evaluate_packet(left) == evaluate_packet(right) else 0
         case _:
             raise RuntimeError
