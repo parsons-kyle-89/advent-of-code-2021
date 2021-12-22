@@ -1,10 +1,6 @@
-from collections import defaultdict
 from dataclasses import dataclass
 from itertools import pairwise
 import os.path
-
-from pprint import pprint
-from tqdm import tqdm
 
 SCRIPT_DIR = os.path.dirname(os.path.relpath(__file__))
 
@@ -26,7 +22,11 @@ class Cube:
         )
 
     def size(self) -> int:
-        return (self.x_max - self.x_min) * (self.y_max - self.y_min) * (self.z_max - self.z_min)
+        return (
+            (self.x_max - self.x_min)
+            * (self.y_max - self.y_min)
+            * (self.z_max - self.z_min)
+        )
 
     def intersects(self, other: "Cube") -> bool:
         x0 = max(self.x_min, other.x_min)
@@ -38,56 +38,39 @@ class Cube:
         return (x0 < x1) and (y0 < y1) and (z0 < z1)
 
     def intersections(self, other: "Cube") -> list["Cube"]:
-        in_others = []
         xs = sorted([self.x_min, self.x_max, other.x_min, other.x_max])
         ys = sorted([self.y_min, self.y_max, other.y_min, other.y_max])
         zs = sorted([self.z_min, self.z_max, other.z_min, other.z_max])
-        for x0, x1 in pairwise(xs):
-            for y0, y1 in pairwise(ys):
-                for z0, z1 in pairwise(zs):
-                    sub_cube = Cube(x0, y0, z0, x1, y1, z1)
-                    if sub_cube in other and sub_cube not in self:
-                        in_others.append(sub_cube)
-        return in_others
+        return [
+            sub_cube
+            for sub_cube in (
+                Cube(x0, y0, z0, x1, y1, z1)
+                for x0, x1 in pairwise(xs)
+                for y0, y1 in pairwise(ys)
+                for z0, z1 in pairwise(zs)
+            )
+            if sub_cube in other and sub_cube not in self
+        ]
 
 
 @dataclass(frozen=True)
 class Instruction:
     cube: Cube
-    state: int
-
-
-# @dataclass
-# class Grid:
-#     cubes: set[Cube]
-# 
-#     def __setitem__(self, cube: Cube, value: int) -> None:
-#         intersecting_cubes = [current_cube for current_cube in self.cubes if current_cube.intersects(cube) and current_cube not in cube]
-#         non_intersecting_cubes = {current_cube for current_cube in self.cubes if not current_cube.intersects(cube)}
-#         new_cubes = non_intersecting_cubes
-# 
-#         for intersecting_cube in intersecting_cubes:
-#             intersections = cube.intersections(intersecting_cube)
-#             new_cubes.update(intersections)
-#         
-#         if value:
-#             new_cubes.add(cube)
-# 
-#         self.cubes = new_cubes
+    turn_on: bool
 
 
 def parse_instruction(raw_instruction: str) -> Instruction:
-    state, ranges = raw_instruction.strip().split(' ', maxsplit=1)
-    state = 1 if state=='on' else 0
+    raw_turn_on, raw_ranges = raw_instruction.strip().split(' ', maxsplit=1)
+    turn_on = raw_turn_on == 'on'
 
-    x_range, y_range, z_range = ranges.split(',', maxsplit=2)
-    x_min, x_max = parse_range(x_range)
-    y_min, y_max = parse_range(y_range)
-    z_min, z_max = parse_range(z_range)
+    raw_x_range, raw_y_range, raw_z_range = raw_ranges.split(',', maxsplit=2)
+    x_min, x_max = parse_range(raw_x_range)
+    y_min, y_max = parse_range(raw_y_range)
+    z_min, z_max = parse_range(raw_z_range)
 
     return Instruction(
         Cube(x_min, y_min, z_min, x_max, y_max, z_max),
-        state,
+        turn_on,
     )
 
 
@@ -96,19 +79,27 @@ def parse_range(raw_range: str) -> tuple[int, int]:
     return int(start), int(stop) + 1
 
 
-def apply_instruction(cubes: set[Cube], instruction: Instruction) -> None:
+def apply_instruction(cubes: set[Cube], instruction: Instruction) -> set[Cube]:
     new_cube = instruction.cube
-    value = instruction.state
+    turn_on = instruction.turn_on
 
-    intersecting_cubes = [current_cube for current_cube in cubes if current_cube.intersects(new_cube) and current_cube not in new_cube]
-    non_intersecting_cubes = {current_cube for current_cube in cubes if not current_cube.intersects(new_cube)}
-    new_cubes = non_intersecting_cubes
+    intersecting_cubes = [
+        current_cube
+        for current_cube in cubes
+        if current_cube.intersects(new_cube)
+        if current_cube not in new_cube
+    ]
+    new_cubes = {
+        current_cube
+        for current_cube in cubes
+        if not current_cube.intersects(new_cube)
+    }
 
     for intersecting_cube in intersecting_cubes:
         intersections = new_cube.intersections(intersecting_cube)
         new_cubes.update(intersections)
-    
-    if value:
+
+    if turn_on:
         new_cubes.add(new_cube)
 
     return new_cubes
@@ -117,17 +108,20 @@ def apply_instruction(cubes: set[Cube], instruction: Instruction) -> None:
 def main() -> None:
     with open(f'{SCRIPT_DIR}/input.txt', 'r') as f:
         raw_instructions = f.readlines()
-    instructions = [parse_instruction(raw_instruction) for raw_instruction in raw_instructions]
-    cubes = set()
+    instructions = [
+        parse_instruction(raw_instruction)
+        for raw_instruction in raw_instructions
+    ]
+    cubes: set[Cube] = set()
 
-    for instruction in tqdm(instructions[:20]):
+    for instruction in instructions[:20]:
         cubes = apply_instruction(cubes, instruction)
 
     answer_1 = sum(cube.size() for cube in cubes)
     assert answer_1 == 551693
     print(answer_1)
 
-    for instruction in tqdm(instructions[20:]):
+    for instruction in instructions[20:]:
         cubes = apply_instruction(cubes, instruction)
 
     answer_2 = sum(cube.size() for cube in cubes)
